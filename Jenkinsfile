@@ -1,6 +1,5 @@
 // in the form 'server/group/project/image:tag'
-IMAGE = "registry.quokka.ninja/ccfs/servicenow-warranty-updater/servicenow
--warranty-updater"
+IMAGE = "registry.quokka.ninja/ccfs/servicenow-warranty-updater/servicenow-warranty-updater"
 VERSION = '0.1.0'
 K8S_PATH = 'ServiceNow-Warranty-Updater-cronjob.yaml'
 

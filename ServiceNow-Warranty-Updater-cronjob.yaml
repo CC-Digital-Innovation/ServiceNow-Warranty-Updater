@@ -16,10 +16,7 @@ spec:
                   value: /var/run/secrets/kubernetes.io/serviceaccount/token
                 - name: VAULT_ADDR
                   value: http://vault.vault:8200
-              image: registry.quokka
-              .ninja/ccfs/servicenow-warranty-updater/servicenow-warranty
-              -updater
-              :latest
+              image: registry.quokka.ninja/ccfs/servicenow-warranty-updater/servicenow-warranty-updater:latest
               name: servicenow-warranty-updater
           # Credentials secret added for authorizing private repository
           imagePullSecrets:
