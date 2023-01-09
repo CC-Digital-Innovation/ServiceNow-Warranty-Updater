@@ -1,0 +1,6 @@
+pysnow
+python-magic-bin
+pytz
+oauthlib
+requests
+requests_oauthlib
