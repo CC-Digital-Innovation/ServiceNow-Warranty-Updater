@@ -38,7 +38,7 @@ spec:
             vault.hashicorp.com/ca-cert: /run/secrets/kubernetes.io/serviceaccount/ca.crt
         spec:
           containers:
-            - image: registry.quokka.ninja/ccfs/servicenow-warranty-updater:0.0.1
+            - image: registry.quokka.ninja/ccfs/servicenow-warranty-updater:2.0.6
               imagePullPolicy: Always
               name: servicenow-warranty-updater
               args: ['/bin/bash', '-c', 'source /vault/concourse/main && source /vault/concourse/main/servicenow-warranty-updater && python ./src/ServiceNow-Warranty-Updater.py']
