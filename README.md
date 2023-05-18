@@ -1,8 +1,8 @@
 # ServiceNow Warranty Updater
 
 ## Summary
-Updates warranty and end-of-life information for Cisco, Meraki, and Dell device
-records inside a ServiceNow CMDB.
+Updates warranty and end-of-life information for Cisco and Meraki records as 
+well as warranty information for Dell records inside a ServiceNow CMDB.
 
 _Note: If you have any questions or comments you can always use GitHub
 discussions, or email me at farinaanthony96@gmail.com._
@@ -13,15 +13,27 @@ end-of-life information that enables project managers to notify clients when
 they need to start considering a new warranty or replacing their old devices.
 
 ## Requirements
+
+#### Language
 - Python 3.11.1
+
+#### Python Libraries
 - oauthlib
 - pysnow
+- python-dotenv
+- python-magic-bin (if running on a Windows OS)
 - pytz
-- requests
+- requests_oauthlib
+
+#### API Access
+- Cisco Support API (Warranty and EOX)
+- Dell TechDirect API
 
 ## Usage
-- Edit the config file with relevant ServiceNow, Cisco, and Dell API information
-  as well as the name of the global logger for the script.
+- Environment variables must be set up with relevant ServiceNow, Cisco, and 
+  Dell API information as well as the name of the logger for the script. 
+  Reference the ".env.example" file to see which environment variables are 
+  required.
 
 - Simply run the script using Python:
   `python ServiceNow-Warranty-Updater.py`
@@ -45,6 +57,10 @@ encounter any problems, please log an
 5. Submit a pull request ツ
 
 ## History
+-  version 2.0.0 - 2023/05/17
+    - Refactor to make script shorter
+    - Switch from config file to environment variables
+
 -  version 1.0.0 - 2023/01/09
     - (initial release)
 

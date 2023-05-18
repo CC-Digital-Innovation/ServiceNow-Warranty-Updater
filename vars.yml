@@ -1,0 +1,6 @@
+repo: https://github.com/CC-Digital-Innovation/ServiceNow-Warranty-Updater.git
+ssh_url: git@github.com:CC-Digital-Innovation/ServiceNow-Warranty-Updater.git
+branch: main
+image: servicenow-warranty-updater
+manifest_path: ServiceNow-Warranty-Updater-cronjob.yaml
+pipeline: servicenow-warranty-updater

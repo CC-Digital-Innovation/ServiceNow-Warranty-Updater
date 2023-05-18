@@ -1,6 +1,6 @@
+oauthlib
 pysnow
+python-dotenv
 python-magic-bin
 pytz
-oauthlib
-requests
 requests_oauthlib

@@ -1,27 +1,50 @@
-apiVersion: batch/v1beta1
+apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: servicenow-warranty-updater
   namespace: default
 spec:
-  schedule: "0 13 * * 0"
   jobTemplate:
     spec:
       template:
+        metadata:
+          annotations:
+            vault.hashicorp.com/agent-inject: 'true'
+            vault.hashicorp.com/role: 'servicenow-warranty-updater'
+            vault.hashicorp.com/agent-inject-secret-main-secrets: 'concourse/main'
+            vault.hashicorp.com/agent-inject-template-main-secrets: |
+              {{- with secret "concourse/main" -}}
+                export SNOW_INSTANCE="{{ .Data.data.snow-instance }}"
+                export SNOW_CI_TABLE_PATH="{{ .Data.data.snow-ci-table-path }}"
+                export PAPERTRAIL_ADDRESS="{{ .Data.data.papertrail-address }}"
+                export PAPERTRAIL_PORT="{{ .Data.data.papertrail-port }}"
+              {{- end }}
+            vault.hashicorp.com/agent-inject-secret-servicenow-warranty-updater-secrets: 'concourse/main/servicenow-warranty-updater'
+            vault.hashicorp.com/agent-inject-template-servicenow-warranty-updater-secrets: |
+              {{- with secret "concourse/main/servicenow-warranty-updater" -}}
+                export SNOW_USERNAME="{{ .Data.data.snow-username }}"
+                export SNOW_PASSWORD="{{ .Data.data.snow-password }}"
+                export CISCO_CLIENT_KEY="{{ .Data.data.cisco-client-key }}"
+                export CISCO_CLIENT_SECRET="{{ .Data.data.cisco-client-secret }}"
+                export CISCO_AUTH_TOKEN_URI="{{ .Data.data.cisco-auth-token-uri }}"
+                export CISCO_WARRANTY_URI="{{ .Data.data.cisco-warranty-uri }}"
+                export CISCO_EOX_URI="{{ .Data.data.cisco-eox-uri }}"
+                export DELL_CLIENT_KEY="{{ .Data.data.dell-client-key }}"
+                export DELL_CLIENT_SECRET="{{ .Data.data.dell-client-secret }}"
+                export DELL_AUTH_TOKEN_URI="{{ .Data.data.dell-auth-token-uri }}"
+                export DELL_WARRANTY_URI="{{ .Data.data.dell-warranty-uri }}"
+                export LOGGER_NAME="{{ .Data.data.logger-name }}"
+              {{- end }}
+            vault.hashicorp.com/ca-cert: /run/secrets/kubernetes.io/serviceaccount/ca.crt
         spec:
           containers:
-            # Environment variables added for Vault
-            - env:
-                - name: JWT_PATH
-                  value: /var/run/secrets/kubernetes.io/serviceaccount/token
-                - name: VAULT_ADDR
-                  value: http://vault.vault:8200
-              image: registry.quokka.ninja/ccfs/servicenow-warranty-updater/servicenow-warranty-updater:latest
+            - image: registry.quokka.ninja/ccfs/servicenow-warranty-updater:0.0.1
+              imagePullPolicy: Always
               name: servicenow-warranty-updater
-          # Credentials secret added for authorizing private repository
+              args: ['/bin/bash', '-c', 'source /vault/concourse/main && source /vault/concourse/main/servicenow-warranty-updater && python ./src/ServiceNow-Warranty-Updater.py']
           imagePullSecrets:
             - name: gitlab-cr
-          restartPolicy: OnFailure
-          # Service Account added for Vault
-          serviceAccountName: vault
+          restartPolicy: Never
+          serviceAccountName: opsgenie-alerts-reporter
       backoffLimit: 3
+  schedule: 0 13 * * 0
