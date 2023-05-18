@@ -22,7 +22,7 @@ __credits__ = ['Anthony Farina']
 __maintainer__ = 'Anthony Farina'
 __email__ = 'farinaanthony96@gmail.com'
 __license__ = 'MIT'
-__version__ = '2.0.2'
+__version__ = '2.0.3'
 __status__ = 'Released'
 
 
