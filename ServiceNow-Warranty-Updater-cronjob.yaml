@@ -14,26 +14,26 @@ spec:
             vault.hashicorp.com/agent-inject-secret-main-secrets: 'concourse/main'
             vault.hashicorp.com/agent-inject-template-main-secrets: |
               {{- with secret "concourse/main" -}}
-                export SNOW_INSTANCE='{{ .Data.data "snow-instance" }}'
-                export SNOW_CI_TABLE_PATH='{{ .Data.data "snow-ci-table-path" }}'
-                export PAPERTRAIL_ADDRESS='{{ .Data.data "papertrail-address" }}'
-                export PAPERTRAIL_PORT='{{ .Data.data "papertrail-port" }}'
+                export SNOW_INSTANCE='{{ index .Data.data "snow-instance" }}'
+                export SNOW_CI_TABLE_PATH='{{ index .Data.data "snow-ci-table-path" }}'
+                export PAPERTRAIL_ADDRESS='{{ index .Data.data "papertrail-address" }}'
+                export PAPERTRAIL_PORT='{{ index .Data.data "papertrail-port" }}'
               {{- end }}
             vault.hashicorp.com/agent-inject-secret-servicenow-warranty-updater-secrets: 'concourse/main/servicenow-warranty-updater'
             vault.hashicorp.com/agent-inject-template-servicenow-warranty-updater-secrets: |
               {{- with secret "concourse/main/servicenow-warranty-updater" -}}
-                export SNOW_USERNAME='{{ .Data.data "snow-username" }}'
-                export SNOW_PASSWORD='{{ .Data.data "snow-password" }}'
-                export CISCO_CLIENT_KEY='{{ .Data.data "cisco-client-key" }}'
-                export CISCO_CLIENT_SECRET='{{ .Data.data "cisco-client-secret" }}'
-                export CISCO_AUTH_TOKEN_URI='{{ .Data.data "cisco-auth-token-uri" }}'
-                export CISCO_WARRANTY_URI='{{ .Data.data "cisco-warranty-uri" }}'
-                export CISCO_EOX_URI='{{ .Data.data "cisco-eox-uri" }}'
-                export DELL_CLIENT_KEY='{{ .Data.data "dell-client-key" }}'
-                export DELL_CLIENT_SECRET='{{ .Data.data "dell-client-secret" }}'
-                export DELL_AUTH_TOKEN_URI='{{ .Data.data "dell-auth-token-uri" }}'
-                export DELL_WARRANTY_URI='{{ .Data.data "dell-warranty-uri" }}'
-                export LOGGER_NAME='{{ .Data.data "logger-name" }}'
+                export SNOW_USERNAME='{{ index .Data.data "snow-username" }}'
+                export SNOW_PASSWORD='{{ index .Data.data "snow-password" }}'
+                export CISCO_CLIENT_KEY='{{ index .Data.data "cisco-client-key" }}'
+                export CISCO_CLIENT_SECRET='{{ index .Data.data "cisco-client-secret" }}'
+                export CISCO_AUTH_TOKEN_URI='{{ index .Data.data "cisco-auth-token-uri" }}'
+                export CISCO_WARRANTY_URI='{{ index .Data.data "cisco-warranty-uri" }}'
+                export CISCO_EOX_URI='{{ index .Data.data "cisco-eox-uri" }}'
+                export DELL_CLIENT_KEY='{{ index .Data.data "dell-client-key" }}'
+                export DELL_CLIENT_SECRET='{{ index .Data.data "dell-client-secret" }}'
+                export DELL_AUTH_TOKEN_URI='{{ index .Data.data "dell-auth-token-uri" }}'
+                export DELL_WARRANTY_URI='{{ index .Data.data "dell-warranty-uri" }}'
+                export LOGGER_NAME='{{ index .Data.data "logger-name" }}'
               {{- end }}
             vault.hashicorp.com/ca-cert: /run/secrets/kubernetes.io/serviceaccount/ca.crt
             vault.hashicorp.com/agent-pre-populate-only: "true"
