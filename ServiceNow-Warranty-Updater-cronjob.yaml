@@ -36,6 +36,7 @@ spec:
                 export LOGGER_NAME="{{ .Data.data.logger-name }}"
               {{- end }}
             vault.hashicorp.com/ca-cert: /run/secrets/kubernetes.io/serviceaccount/ca.crt
+            vault.hashicorp.com/agent-pre-populate-only: "true"
         spec:
           containers:
             - image: registry.quokka.ninja/ccfs/servicenow-warranty-updater:2.0.6
