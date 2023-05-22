@@ -45,6 +45,6 @@ spec:
           imagePullSecrets:
             - name: gitlab-cr
           restartPolicy: Never
-          serviceAccountName: opsgenie-alerts-reporter
+          serviceAccountName: servicenow-warranty-updater
       backoffLimit: 3
   schedule: 0 13 * * 0
