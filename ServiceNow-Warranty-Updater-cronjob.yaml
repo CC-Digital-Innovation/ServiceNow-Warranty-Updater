@@ -42,7 +42,9 @@ spec:
             - image: registry.quokka.ninja/ccfs/servicenow-warranty-updater:2.0.9
               imagePullPolicy: Always
               name: servicenow-warranty-updater
-              args: ['/bin/bash', '-c', 'source /vault/concourse/main && source /vault/concourse/main/servicenow-warranty-updater && python ./src/ServiceNow-Warranty-Updater.py']
+              args: ['/bin/bash', '-c', 'source /vault/secrets/main-secrets && 
+              source /vault/secrets/servicenow-warranty-updater-secrets && 
+              python ./src/ServiceNow-Warranty-Updater.py']
           imagePullSecrets:
             - name: gitlab-cr
           restartPolicy: Never
