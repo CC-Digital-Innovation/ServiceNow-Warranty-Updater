@@ -22,7 +22,7 @@ __credits__ = ['Anthony Farina']
 __maintainer__ = 'Anthony Farina'
 __email__ = 'farinaanthony96@gmail.com'
 __license__ = 'MIT'
-__version__ = '2.0.11'
+__version__ = '2.0.12'
 __status__ = 'Released'
 
 
@@ -62,9 +62,10 @@ CISCO_SEARCH_TERMS = ['Cisco', 'Meraki']
 DELL_SEARCH_TERMS = ['Dell']
 INVALID_SN_CHARS_REGEX = r'[^-a-z0-9A-Z]'
 SCRIPT_PATH = os.path.dirname(os.path.realpath(__file__))
-SNOW_REQUIRED_FIELDS = ['sys_id', 'name', 'manufacturer', 'serial_number',
-                        'u_active_support_contract', 'warranty_expiration',
-                        'u_end_of_life', 'u_valid_warranty_data']
+SNOW_REQUIRED_FIELDS = ['sys_id', 'name', 'manufacturer', 'manufacturer.name',
+                        'serial_number', 'u_active_support_contract',
+                        'warranty_expiration', 'u_end_of_life',
+                        'u_valid_warranty_data', 'company']
 
 
 class SNowRecord:
@@ -196,7 +197,8 @@ def extract_valid_records(snow_records: list[dict[str, str]]) -> \
         if curr_sn is None or curr_sn == '':
             # No serial number found.
             LOGGER.warning('No serial number found for ServiceNow '
-                           f'{record["manufacturer"]} record: {record["name"]}')
+                           f'{record["manufacturer.name"]} record:'
+                           f' {record["name"]}')
             continue
 
         # Check if the serial number field was filled in with nonsense.
@@ -204,8 +206,8 @@ def extract_valid_records(snow_records: list[dict[str, str]]) -> \
             # Yell at engineers for not filling in the serial number field
             # correctly when onboarding a customer's devices.
             LOGGER.warning('A silly serial number was found for ServiceNow '
-                           f'{record["manufacturer"]} record: {record["name"]}'
-                           f' | {curr_sn}')
+                           f'{record["manufacturer.name"]} record:'
+                           f' {record["name"]} | {curr_sn}')
             continue
 
         # Clean the current serial number.
@@ -215,7 +217,7 @@ def extract_valid_records(snow_records: list[dict[str, str]]) -> \
         if clean_sn in valid_records.keys():
             # Duplicate serial number found.
             LOGGER.warning('Duplicate serial number found for ServiceNow '
-                           f'{record["manufacturer"]} record: {clean_sn}')
+                           f'{record["manufacturer.name"]} record: {clean_sn}')
             continue
 
         # Check if the serial number was cleaned.
@@ -227,7 +229,7 @@ def extract_valid_records(snow_records: list[dict[str, str]]) -> \
             SNowRecord(
                 snow_sys_id=record['sys_id'],
                 name=record['name'],
-                manufacturer=record['manufacturer'],
+                manufacturer=record['manufacturer.name'],
                 serial_number=clean_sn,
                 active_support_contract=record['u_active_support_contract'],
                 warranty_expiration=record['warranty_expiration'],

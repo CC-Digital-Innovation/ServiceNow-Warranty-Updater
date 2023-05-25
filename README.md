@@ -57,6 +57,10 @@ encounter any problems, please log an
 5. Submit a pull request ツ
 
 ## History
+-  version 2.0.1-2.0.12 - 2023/05/25
+    - Several tweaks to cronjob yaml for compatibility
+    - Fix logging manufacturer object instead of the string
+
 -  version 2.0.0 - 2023/05/17
     - Refactor to make script shorter
     - Switch from config file to environment variables
