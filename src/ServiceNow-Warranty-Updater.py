@@ -22,7 +22,7 @@ __credits__ = ['Anthony Farina']
 __maintainer__ = 'Anthony Farina'
 __email__ = 'farinaanthony96@gmail.com'
 __license__ = 'MIT'
-__version__ = '2.0.12'
+__version__ = '2.0.13'
 __status__ = 'Released'
 
 
@@ -72,8 +72,8 @@ class SNowRecord:
     """
     Represents a record inside a ServiceNow instance.
 
-    :param snow_sys_id: The ServiceNow system identifier of the device.
-    :param name: The name of the device.
+    :param snow_sys_id: The ServiceNow system identifier of the record.
+    :param name: The name of the device the record is referring to.
     :param manufacturer: The manufacturer of the device.
     :param serial_number: The serial number of the device.
     :param active_support_contract: Custom ServiceNow boolean string that
@@ -84,7 +84,7 @@ class SNowRecord:
     :param valid_warranty_data: The boolean string that states if this device
         has valid warranty data.
     :param update_snow: Boolean that states if the script should update this
-        device to ServiceNow because new information was found about this
+        record in ServiceNow because new information was found about this
         device that needs to be updated.
     """
 
@@ -121,7 +121,7 @@ def get_records_from_snow(manufacturer_search_terms: list[str]) -> \
     inside their "Manufacturer" field.
 
     :param manufacturer_search_terms: List of strings that the manufacturer
-    field should contain.
+        field should contain.
 
     :return: An iterable list of records from ServiceNow.
     """
@@ -163,7 +163,7 @@ def get_records_from_snow(manufacturer_search_terms: list[str]) -> \
         fields=SNOW_REQUIRED_FIELDS
     )
 
-    LOGGER.info('Records retrieved!')
+    LOGGER.info(f'{"/".join(manufacturer_search_terms)} records retrieved!')
 
     # Return the records.
     return snow_resp.all()
@@ -179,7 +179,7 @@ def extract_valid_records(snow_records: list[dict[str, str]]) -> \
     :param snow_records: A list of ServiceNow records.
 
     :return: A dictionary where keys are serial numbers and the values are
-        the fields associated with that device.
+        the fields associated with that record.
     """
 
     LOGGER.info(f'Validating ServiceNow records...')
@@ -204,7 +204,7 @@ def extract_valid_records(snow_records: list[dict[str, str]]) -> \
         # Check if the serial number field was filled in with nonsense.
         if curr_sn == 'N/A' or curr_sn == 'TBD':
             # Yell at engineers for not filling in the serial number field
-            # correctly when onboarding a customer's devices.
+            # correctly when onboarding a customer's devices into records.
             LOGGER.warning('A silly serial number was found for ServiceNow '
                            f'{record["manufacturer.name"]} record:'
                            f' {record["name"]} | {curr_sn}')
@@ -245,7 +245,8 @@ def extract_valid_records(snow_records: list[dict[str, str]]) -> \
 
 
 def clean_serial_number(serial_number: str) -> str:
-    """Removes corrupt and invalid characters from a given serial number and
+    """
+    Removes corrupt and invalid characters from a given serial number and
     returns the cleaned serial number.
 
     :param serial_number: The serial number string to remove corrupt and invalid
@@ -258,7 +259,7 @@ def clean_serial_number(serial_number: str) -> str:
     return re.sub(INVALID_SN_CHARS_REGEX, '', serial_number)
 
 
-def update_cisco_devices_with_warranties(
+def update_cisco_records_with_warranties(
         cisco_records: dict[str, SNowRecord]) -> None:
     """
     Updates the provided Cisco records with updated warranty information via
@@ -268,7 +269,8 @@ def update_cisco_devices_with_warranties(
         information.
     """
 
-    LOGGER.info('Retrieving Cisco warranty information...')
+    LOGGER.info('Retrieving and updating Cisco records with warranty '
+                'information...')
 
     # Get a Cisco Support API token to establish a connection to the API.
     cisco_warranty_client = BackendApplicationClient(client_id=CISCO_CLIENT_KEY)
@@ -280,7 +282,7 @@ def update_cisco_devices_with_warranties(
     cisco_warranty_client = OAuth2Session(CISCO_CLIENT_KEY,
                                           token=cisco_warranty_token)
 
-    # Get all provided Cisco device's warranty summaries in batches of 75
+    # Get all provided Cisco record's warranty summaries in batches of 75
     # (the maximum batch size for this API endpoint).
     for batch in batcher(list(cisco_records.keys()), 75):
         # Prepare the batch request for Cisco warranties.
@@ -300,7 +302,7 @@ def update_cisco_devices_with_warranties(
         # The request was successful, so let's convert it to JSON.
         cisco_warranty_batch_resp = cisco_warranty_resp.json()
 
-        # Iterate through this batch and update the Cisco devices.
+        # Iterate through this batch and update the Cisco records.
         for cisco_device in cisco_warranty_batch_resp['serial_numbers']:
             # Check if the API returned an error for this serial number.
             if 'ErrorResponse' in cisco_device.keys():
@@ -312,14 +314,9 @@ def update_cisco_devices_with_warranties(
                              f'Cisco record with serial number '
                              f'{cisco_device["sr_no"]}. Reason: '
                              f'{error_response}')
-
-                # Check if there is a corrupt character in this serial number.
-                # if 'A parameter is incorrectly formatted' in error_response:
-                #     print('Weird S/N found. Record will not be updated.')
-
                 continue
 
-            # The response was valid, so let's extract the Cisco device from
+            # The response was valid, so let's extract the Cisco record from
             # the provided valid Cisco records.
             cisco_record = cisco_records.get(cisco_device['sr_no'])
 
@@ -331,49 +328,51 @@ def update_cisco_devices_with_warranties(
                              f'{cisco_device["sr_no"]}')
                 continue
 
-            # Update this Cisco device with updated warranty information.
-            update_cisco_device_warranty(cisco_record, cisco_device)
+            # Update this Cisco record with updated warranty information.
+            update_cisco_record_warranty(cisco_record, cisco_device)
+
+    LOGGER.info('Cisco records updated!')
 
 
-def update_cisco_device_warranty(cisco_device: SNowRecord,
+def update_cisco_record_warranty(cisco_record: SNowRecord,
                                  warranty_info: dict) -> None:
     """
-    Updates the provided Cisco device using the provided warranty information.
+    Updates the provided Cisco record using the provided warranty information.
 
-    :param cisco_device: The Cisco device to update.
-    :param warranty_info: The warranty information to update the Cisco device
+    :param cisco_record: The Cisco record to update.
+    :param warranty_info: The warranty information to update the Cisco record
         with.
     """
 
-    # Check if this Cisco device lacks a warranty or is not covered by a support
+    # Check if this Cisco record lacks a warranty or is not covered by a support
     # contract.
     if warranty_info['warranty_end_date'] == '' and \
             warranty_info['is_covered'] != 'YES':
-        if cisco_device.valid_warranty_data != 'false':
-            cisco_device.valid_warranty_data = 'false'
-            cisco_device.update_snow = True
+        if cisco_record.valid_warranty_data != 'false':
+            cisco_record.valid_warranty_data = 'false'
+            cisco_record.update_snow = True
     else:
-        if cisco_device.valid_warranty_data != 'true':
-            cisco_device.valid_warranty_data = 'true'
-            cisco_device.update_snow = True
+        if cisco_record.valid_warranty_data != 'true':
+            cisco_record.valid_warranty_data = 'true'
+            cisco_record.update_snow = True
 
     # Check if the warranty end date is not in ServiceNow.
-    if cisco_device.warranty_expiration != warranty_info['warranty_end_date']:
-        cisco_device.warranty_expiration = warranty_info['warranty_end_date']
-        cisco_device.update_snow = True
+    if cisco_record.warranty_expiration != warranty_info['warranty_end_date']:
+        cisco_record.warranty_expiration = warranty_info['warranty_end_date']
+        cisco_record.update_snow = True
 
     # Make sure SNow reflects that this warranty data is valid.
     if warranty_info['is_covered'] != 'YES':
-        if cisco_device.active_support_contract != 'false':
-            cisco_device.active_support_contract = 'false'
-            cisco_device.update_snow = True
+        if cisco_record.active_support_contract != 'false':
+            cisco_record.active_support_contract = 'false'
+            cisco_record.update_snow = True
     else:
-        if cisco_device.active_support_contract != 'true':
-            cisco_device.active_support_contract = 'true'
-            cisco_device.update_snow = True
+        if cisco_record.active_support_contract != 'true':
+            cisco_record.active_support_contract = 'true'
+            cisco_record.update_snow = True
 
 
-def update_cisco_devices_with_eols(cisco_records: dict[str, SNowRecord]) -> \
+def update_cisco_records_with_eols(cisco_records: dict[str, SNowRecord]) -> \
         None:
     """
     Updates the provided Cisco records with updated end-of-life information via
@@ -383,7 +382,8 @@ def update_cisco_devices_with_eols(cisco_records: dict[str, SNowRecord]) -> \
         information.
     """
 
-    LOGGER.info('Retrieving Cisco end-of-life information...')
+    LOGGER.info('Retrieving and updating Cisco records with end-of-life '
+                'information...')
 
     # Get a Cisco EOX API token to establish a connection to the API.
     cisco_eox_client = BackendApplicationClient(client_id=CISCO_CLIENT_KEY)
@@ -394,7 +394,7 @@ def update_cisco_devices_with_eols(cisco_records: dict[str, SNowRecord]) -> \
         client_secret=CISCO_CLIENT_SECRET)
     cisco_eox_client = OAuth2Session(CISCO_CLIENT_KEY, token=cisco_eox_token)
 
-    # Get all provided Cisco device's end of life summaries in batches of 20
+    # Get all provided Cisco record's end of life summaries in batches of 20
     # (the maximum batch size for this API endpoint).
     for batch in batcher(list(cisco_records.keys()), 20):
         # Prepare the batch request for Cisco EOX.
@@ -424,40 +424,42 @@ def update_cisco_devices_with_eols(cisco_records: dict[str, SNowRecord]) -> \
             LOGGER.error(cisco_eox_batch_resp)
             continue
 
-        # Iterate through this batch and update the Cisco device.
+        # Iterate through this batch and update the Cisco record.
         for cisco_device in cisco_eox_batch_resp['EOXRecord']:
             end_of_life_str = cisco_device['LastDateOfSupport']['value']
 
             # There could be multiple records with the same EoL information,
             # so we need to loop through each one.
             for cisco_device_sn in cisco_device['EOXInputValue'].split(','):
-                # Get the related Cisco device with this serial number.
+                # Get the related Cisco record with this serial number.
                 cisco_record = cisco_records.get(cisco_device_sn)
 
-                # Check if we could not reference this device back to
+                # Check if we could not reference this record back to
                 # ServiceNow.
                 if not cisco_record:
                     LOGGER.error(f'Unable to reference Cisco record back to '
                                  f'ServiceNow with serial number '
-                                 f'{cisco_device["sr_no"]}')
+                                 f'{cisco_device_sn}')
                     continue
 
-                # Update this Cisco device with updated end-of-life information.
-                update_cisco_device_eol(cisco_record, end_of_life_str)
+                # Update this Cisco record with updated end-of-life information.
+                update_cisco_record_eol(cisco_record, end_of_life_str)
+
+    LOGGER.info('Cisco records updated!')
 
 
-def update_cisco_device_eol(cisco_record: SNowRecord,
+def update_cisco_record_eol(cisco_record: SNowRecord,
                             end_of_life_date_string: str) -> None:
     """
-    Updates the provided Cisco device using the provided end of life
+    Updates the provided Cisco record using the provided end of life
     information.
 
-    :param cisco_record: The Cisco device to update.
+    :param cisco_record: The Cisco record to update.
     :param end_of_life_date_string: The end of life information to update the
-        Cisco device with.
+        Cisco record with.
     """
 
-    # Check if this device's EoL needs to be updated.
+    # Check if this Cisco record's EoL needs to be updated.
     if cisco_record.end_of_life != end_of_life_date_string:
         cisco_record.end_of_life = end_of_life_date_string
         cisco_record.update_snow = True
@@ -508,8 +510,10 @@ def sync_records_back_to_snow(snow_records: dict[str, SNowRecord]) -> None:
                              f'be found: {snow_record.name}')
                 continue
 
+    LOGGER.info('Records synchronized with ServiceNow!')
 
-def update_dell_devices_with_warranties(dell_records: dict[str, SNowRecord]) \
+
+def update_dell_records_with_warranties(dell_records: dict[str, SNowRecord]) \
         -> None:
     """
     Updates the provided Dell records with updated warranty information via
@@ -519,7 +523,8 @@ def update_dell_devices_with_warranties(dell_records: dict[str, SNowRecord]) \
         information.
     """
 
-    LOGGER.info('Retrieving Dell warranty information...')
+    LOGGER.info('Retrieving and updating Dell records with warranty '
+                'information...')
 
     # Get a Dell TechDirect API token to establish a connection to the API.
     dell_warranty_client = BackendApplicationClient(client_id=DELL_CLIENT_KEY)
@@ -531,7 +536,7 @@ def update_dell_devices_with_warranties(dell_records: dict[str, SNowRecord]) \
     dell_warranty_client = OAuth2Session(DELL_CLIENT_KEY,
                                          token=dell_warranty_token)
 
-    # Get all provided Dell device's warranty summaries in batches of 100.
+    # Get all provided Dell record's warranty summaries in batches of 100.
     # This is the maximum the Dell TechDirect API allows.
     for batch in batcher(list(dell_records.keys()), 100):
         # Prepare the batch request for Dell warranties.
@@ -556,7 +561,7 @@ def update_dell_devices_with_warranties(dell_records: dict[str, SNowRecord]) \
 
         # Iterate through this batch of Dell devices.
         for dell_device in dell_warranty_batch_resp:
-            # Check for an errored Dell device here. Otherwise, do the get.
+            # Get the related Dell record with this serial number.
             dell_record = dell_records.get(dell_device['serviceTag'])
 
             # Check if we cannot back-reference the serial number provided to
@@ -567,40 +572,40 @@ def update_dell_devices_with_warranties(dell_records: dict[str, SNowRecord]) \
                              f'{dell_device["serviceTag"]}')
                 continue
 
-            # Update this Dell device with updated warranty information.
-            update_dell_device_warranty(dell_record, dell_device)
+            # Update this Dell record with updated warranty information.
+            update_dell_record_warranty(dell_record, dell_device)
 
 
-def update_dell_device_warranty(dell_device: SNowRecord, warranty_info: dict) \
+def update_dell_record_warranty(dell_record: SNowRecord, warranty_info: dict) \
         -> None:
     """
-    Updates the provided Dell device using the provided warranty information.
+    Updates the provided Dell record using the provided warranty information.
 
-    :param dell_device: The Dell device to update.
-    :param warranty_info: The warranty information to update the Dell device
+    :param dell_record: The Dell record to update.
+    :param warranty_info: The warranty information to update the Dell record
         with.
     """
 
     # Check if the warranty info is invalid or there is no warranty information.
     if warranty_info['invalid'] or len(warranty_info['entitlements']) == 0:
-        # Check if the Dell device matches the state of the warranty
+        # Check if the Dell record matches the state of the warranty
         # information.
-        if dell_device.valid_warranty_data != 'false':
-            dell_device.valid_warranty_data = 'false'
-            dell_device.update_snow = True
+        if dell_record.valid_warranty_data != 'false':
+            dell_record.valid_warranty_data = 'false'
+            dell_record.update_snow = True
 
-        # Check if the Dell device reflects that it is not under an active
+        # Check if the Dell record reflects that it is not under an active
         # support contract.
-        if dell_device.active_support_contract != 'false':
-            dell_device.active_support_contract = 'false'
-            dell_device.update_snow = True
+        if dell_record.active_support_contract != 'false':
+            dell_record.active_support_contract = 'false'
+            dell_record.update_snow = True
 
         return
 
-    # Check if the Dell device matches the state of the warranty information.
-    if dell_device.valid_warranty_data != 'true':
-        dell_device.valid_warranty_data = 'true'
-        dell_device.update_snow = True
+    # Check if the Dell record matches the state of the warranty information.
+    if dell_record.valid_warranty_data != 'true':
+        dell_record.valid_warranty_data = 'true'
+        dell_record.update_snow = True
 
     # Get the warranty end date as a string.
     dell_warranty_end_date = \
@@ -608,9 +613,9 @@ def update_dell_device_warranty(dell_device: SNowRecord, warranty_info: dict) \
             'endDate'][:10]
 
     # Check if the warranty end date is not in ServiceNow.
-    if dell_device.warranty_expiration != dell_warranty_end_date:
-        dell_device.warranty_expiration = dell_warranty_end_date
-        dell_device.update_snow = True
+    if dell_record.warranty_expiration != dell_warranty_end_date:
+        dell_record.warranty_expiration = dell_warranty_end_date
+        dell_record.update_snow = True
 
 
 def batcher(iterable, batch_size: int):
@@ -713,14 +718,14 @@ def main() -> None:
     valid_snow_cisco_records = extract_valid_records(active_snow_cisco_records)
 
     # Use the Cisco Support API to extract warranty dates and update the
-    # Cisco device objects in memory.
-    update_cisco_devices_with_warranties(valid_snow_cisco_records)
+    # Cisco record objects in memory.
+    update_cisco_records_with_warranties(valid_snow_cisco_records)
 
     # Use the Cisco EOX API to extract end of life dates and update the Cisco
-    # device objects in memory.
-    update_cisco_devices_with_eols(valid_snow_cisco_records)
+    # record objects in memory.
+    update_cisco_records_with_eols(valid_snow_cisco_records)
 
-    # Synchronize the Cisco devices in memory to ServiceNow, based on if we
+    # Synchronize the Cisco records in memory to ServiceNow, based on if we
     # were able to extract updated information from the Cisco APIs.
     sync_records_back_to_snow(valid_snow_cisco_records)
 
@@ -731,10 +736,10 @@ def main() -> None:
     valid_snow_dell_records = extract_valid_records(active_snow_dell_records)
 
     # Use the Dell TechDirect API to extract warranty dates and update the Dell
-    # device objects in memory.
-    update_dell_devices_with_warranties(valid_snow_dell_records)
+    # record objects in memory.
+    update_dell_records_with_warranties(valid_snow_dell_records)
 
-    # Synchronize the Dell devices in memory to ServiceNow, based on if we
+    # Synchronize the Dell records in memory to ServiceNow, based on if we
     # were able to extract updated information from the Dell TechDirect API.
     sync_records_back_to_snow(valid_snow_dell_records)
 

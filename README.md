@@ -57,6 +57,11 @@ encounter any problems, please log an
 5. Submit a pull request ツ
 
 ## History
+-  version 2.0.13 - 2023/07/19
+    - Fixed logging crash
+    - Changed record vs. device terminology
+    - Added python-magic python in requirements.txt
+
 -  version 2.0.1-2.0.12 - 2023/05/25
     - Several tweaks to cronjob yaml for compatibility
     - Fix logging manufacturer object instead of the string
