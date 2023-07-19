@@ -39,7 +39,7 @@ spec:
             vault.hashicorp.com/agent-pre-populate-only: "true"
         spec:
           containers:
-            - image: registry.quokka.ninja/ccfs/servicenow-warranty-updater:2.0.12
+            - image: registry.quokka.ninja/ccfs/servicenow-warranty-updater:2.0.13
               imagePullPolicy: Always
               name: servicenow-warranty-updater
               args: ['/bin/bash', '-c', 'source /vault/secrets/main-secrets && source /vault/secrets/servicenow-warranty-updater-secrets && python ./src/ServiceNow-Warranty-Updater.py']
