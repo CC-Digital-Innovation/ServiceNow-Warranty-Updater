@@ -290,7 +290,8 @@ def update_cisco_records_with_warranties(
         cisco_warranty_url = CISCO_WARRANTY_URI + sn_batch
 
         # Get the warranty summary batch.
-        cisco_warranty_resp = cisco_warranty_client.get(url=cisco_warranty_url)
+        cisco_warranty_resp = cisco_warranty_client.get(
+            url=cisco_warranty_url, verify=False)
 
         # Check if the request was not successful.
         if cisco_warranty_resp.status_code != 200:
@@ -403,7 +404,7 @@ def update_cisco_records_with_eols(cisco_records: dict[str, SNowRecord]) -> \
 
         # Get the EOX batch and convert it to JSON.
         cisco_eox_resp = cisco_eox_client.get(
-            url=cisco_eox_url, params={'responseencoding': 'json'}
+            url=cisco_eox_url, params={'responseencoding': 'json'}, verify=False
         )
 
         # Check if the request was not successful.
@@ -546,7 +547,8 @@ def update_dell_records_with_warranties(dell_records: dict[str, SNowRecord]) \
         dell_warranty_resp = dell_warranty_client.get(
             url=DELL_WARRANTY_URI,
             headers={'Accept': 'application/json'},
-            params={'servicetags': sn_batch}
+            params={'servicetags': sn_batch},
+            verify=False
         )
 
         # Check if the request was not successful.
