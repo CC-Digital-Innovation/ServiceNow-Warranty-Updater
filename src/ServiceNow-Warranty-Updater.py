@@ -1,42 +1,31 @@
-from datetime import datetime
+from dataclasses import dataclass
 import itertools
-import logging
-from logging.handlers import SysLogHandler
 import os
 import re
-import sys
-import time
+import urllib3
 
-import dotenv
+from dotenv import load_dotenv
+from loguru import logger
+from oauthlib.oauth2 import BackendApplicationClient
 import pysnow
 from pysnow import exceptions
-import pytz
-from oauthlib.oauth2 import BackendApplicationClient
 from requests_oauthlib import OAuth2Session
 
 
-# Module information.
-__author__ = 'Anthony Farina'
-__copyright__ = 'Copyright (C) 2023 Anthony Farina'
-__credits__ = ['Anthony Farina']
-__maintainer__ = 'Anthony Farina'
-__email__ = 'farinaanthony96@gmail.com'
-__license__ = 'MIT'
-__version__ = '2.0.13'
-__status__ = 'Released'
-
-
-# Set up the extraction of global constants from the environment variable file.
-dotenv.load_dotenv('./../.env')
+# ====================== Environment / Global Variables =======================
+load_dotenv(override=True)
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ServiceNow API constant global variables.
-SNOW_INSTANCE = os.getenv('SNOW_INSTANCE')
-SNOW_USERNAME = os.getenv('SNOW_USERNAME')
-SNOW_PASSWORD = os.getenv('SNOW_PASSWORD')
-SNOW_CI_TABLE_PATH = os.getenv('SNOW_CI_TABLE_PATH')
-SNOW_CLIENT = pysnow.Client(instance=SNOW_INSTANCE,
-                            user=SNOW_USERNAME,
-                            password=SNOW_PASSWORD)
+SERVICENOW_INSTANCE = os.getenv('SERVICENOW_INSTANCE')
+SERVICENOW_USERNAME = os.getenv('SERVICENOW_USERNAME')
+SERVICENOW_PASSWORD = os.getenv('SERVICENOW_PASSWORD')
+SERVICENOW_CI_TABLE_PATH = os.getenv('SERVICENOW_CI_TABLE_PATH')
+SERVICENOW_CLIENT = pysnow.Client(
+    instance=SERVICENOW_INSTANCE,
+    user=SERVICENOW_USERNAME,
+    password=SERVICENOW_PASSWORD
+)
 
 # Cisco Support and End-of-Life API constant global variables.
 CISCO_CLIENT_KEY = os.getenv('CISCO_CLIENT_KEY')
@@ -51,39 +40,36 @@ DELL_CLIENT_SECRET = os.getenv('DELL_CLIENT_SECRET')
 DELL_AUTH_TOKEN_URI = os.getenv('DELL_AUTH_TOKEN_URI')
 DELL_WARRANTY_URI = os.getenv('DELL_WARRANTY_URI')
 
-# Logger constant global variables.
-LOGGER_NAME = os.getenv('LOGGER_NAME')
-LOGGER = None
-PAPERTRAIL_ADDRESS = os.getenv('PAPERTRAIL_ADDRESS')
-PAPERTRAIL_PORT = os.getenv('PAPERTRAIL_PORT')
-
 # Other constant global variables.
 CISCO_SEARCH_TERMS = ['Cisco', 'Meraki']
 DELL_SEARCH_TERMS = ['Dell']
 INVALID_SN_CHARS_REGEX = r'[^-a-z0-9A-Z]'
-SCRIPT_PATH = os.path.dirname(os.path.realpath(__file__))
-SNOW_REQUIRED_FIELDS = ['sys_id', 'name', 'manufacturer', 'manufacturer.name',
-                        'serial_number', 'u_active_support_contract',
-                        'warranty_expiration', 'u_end_of_life',
-                        'u_valid_warranty_data', 'company']
+SNOW_REQUIRED_FIELDS = [
+    'sys_id', 'name', 'manufacturer', 'manufacturer.name',
+    'serial_number', 'u_active_support_contract',
+    'warranty_expiration', 'u_end_of_life', 'u_valid_warranty_data',
+    'company'
+]
 
 
+# ================================== Classes ==================================
+@dataclass
 class SNowRecord:
     """
     Represents a record inside a ServiceNow instance.
 
-    :param snow_sys_id: The ServiceNow system identifier of the record.
-    :param name: The name of the device the record is referring to.
-    :param manufacturer: The manufacturer of the device.
-    :param serial_number: The serial number of the device.
-    :param active_support_contract: Custom ServiceNow boolean string that
+    :param snow_sys_id (str): The ServiceNow system identifier of the record.
+    :param name (str): The name of the device the record is referring to.
+    :param manufacturer (str): The manufacturer of the device.
+    :param serial_number (str): The serial number of the device.
+    :param active_support_contract (str): Custom ServiceNow boolean string that
         denotes a device is under an active contract (for warranties?).
-    :param warranty_expiration: The date that the warranty for this device
+    :param warranty_expiration (str): The date that the warranty for this device
         expires.
-    :param end_of_life: The date that marks the end of life for this device.
-    :param valid_warranty_data: The boolean string that states if this device
+    :param end_of_life (str): The date that marks the end of life for this device.
+    :param valid_warranty_data (str): The boolean string that states if this device
         has valid warranty data.
-    :param update_snow: Boolean that states if the script should update this
+    :param update_snow (bool): Boolean that states if the script should update this
         record in ServiceNow because new information was found about this
         device that needs to be updated.
     """
@@ -97,40 +83,27 @@ class SNowRecord:
     warranty_expiration: str
     end_of_life: str
     valid_warranty_data: str
-    update_snow: bool
-
-    # Class initializer.
-    def __init__(self, snow_sys_id, name, manufacturer, serial_number,
-                 active_support_contract, warranty_expiration, end_of_life,
-                 valid_warranty_data, update_snow=False):
-        self.snow_sys_id = snow_sys_id
-        self.name = name
-        self.manufacturer = manufacturer
-        self.serial_number = serial_number
-        self.active_support_contract = active_support_contract
-        self.warranty_expiration = warranty_expiration
-        self.end_of_life = end_of_life
-        self.valid_warranty_data = valid_warranty_data
-        self.update_snow = update_snow
+    update_snow: bool = False
 
 
+# ================================= Functions =================================
 def get_records_from_snow(manufacturer_search_terms: list[str]) -> \
         list[dict[str, str]]:
     """
     Gets all active records from ServiceNow that contain the search term(s)
     inside their "Manufacturer" field.
 
-    :param manufacturer_search_terms: List of strings that the manufacturer
+    :param manufacturer_search_terms (list[str]): List of strings that the manufacturer
         field should contain.
 
-    :return: An iterable list of records from ServiceNow.
+    :return (list[dict[str, str]]): An iterable list of records from ServiceNow.
     """
 
-    LOGGER.info(f'Retrieving {"/".join(manufacturer_search_terms)} records '
+    logger.info(f'Retrieving {"/".join(manufacturer_search_terms)} records '
                 f'from ServiceNow...')
 
     # Create the connection to the configuration item (CI) table.
-    snow_ci_table = SNOW_CLIENT.resource(api_path=SNOW_CI_TABLE_PATH)
+    snow_ci_table = SERVICENOW_CLIENT.resource(api_path=SERVICENOW_CI_TABLE_PATH)
 
     # Create the query for the CI table.
     snow_ci_query = (pysnow.QueryBuilder().
@@ -163,7 +136,7 @@ def get_records_from_snow(manufacturer_search_terms: list[str]) -> \
         fields=SNOW_REQUIRED_FIELDS
     )
 
-    LOGGER.info(f'{"/".join(manufacturer_search_terms)} records retrieved!')
+    logger.info(f'{"/".join(manufacturer_search_terms)} records retrieved!')
 
     # Return the records.
     return snow_resp.all()
@@ -182,7 +155,7 @@ def extract_valid_records(snow_records: list[dict[str, str]]) -> \
         the fields associated with that record.
     """
 
-    LOGGER.info(f'Validating ServiceNow records...')
+    logger.info(f'Validating ServiceNow records...')
 
     # Setup values needed for the return object.
     valid_records = dict()
@@ -196,7 +169,7 @@ def extract_valid_records(snow_records: list[dict[str, str]]) -> \
         # Check if the serial number field is blank.
         if curr_sn is None or curr_sn == '':
             # No serial number found.
-            LOGGER.warning('No serial number found for ServiceNow '
+            logger.warning('No serial number found for ServiceNow '
                            f'{record["manufacturer.name"]} record:'
                            f' {record["name"]}')
             continue
@@ -205,7 +178,7 @@ def extract_valid_records(snow_records: list[dict[str, str]]) -> \
         if curr_sn == 'N/A' or curr_sn == 'TBD':
             # Yell at engineers for not filling in the serial number field
             # correctly when onboarding a customer's devices into records.
-            LOGGER.warning('A silly serial number was found for ServiceNow '
+            logger.warning('A silly serial number was found for ServiceNow '
                            f'{record["manufacturer.name"]} record:'
                            f' {record["name"]} | {curr_sn}')
             continue
@@ -216,7 +189,7 @@ def extract_valid_records(snow_records: list[dict[str, str]]) -> \
         # Check if the serial number has been seen before.
         if clean_sn in valid_records.keys():
             # Duplicate serial number found.
-            LOGGER.warning('Duplicate serial number found for ServiceNow '
+            logger.warning('Duplicate serial number found for ServiceNow '
                            f'{record["manufacturer.name"]} record: {clean_sn}')
             continue
 
@@ -238,7 +211,7 @@ def extract_valid_records(snow_records: list[dict[str, str]]) -> \
                 update_snow=update_snow
             )
 
-    LOGGER.info('ServiceNow records validated!')
+    logger.info('ServiceNow records validated!')
 
     # Return all valid records from ServiceNow.
     return valid_records
@@ -269,7 +242,7 @@ def update_cisco_records_with_warranties(
         information.
     """
 
-    LOGGER.info('Retrieving and updating Cisco records with warranty '
+    logger.info('Retrieving and updating Cisco records with warranty '
                 'information...')
 
     # Get a Cisco Support API token to establish a connection to the API.
@@ -295,7 +268,7 @@ def update_cisco_records_with_warranties(
 
         # Check if the request was not successful.
         if cisco_warranty_resp.status_code != 200:
-            LOGGER.error(f'Status code {cisco_warranty_resp.status_code} '
+            logger.error(f'Status code {cisco_warranty_resp.status_code} '
                          f'received from the Cisco Warranty API. Reason: '
                          f'{cisco_warranty_resp.reason}')
             continue
@@ -311,7 +284,7 @@ def update_cisco_records_with_warranties(
                 error_response = \
                     (cisco_device["ErrorResponse"]["APIError"][
                         "ErrorDescription"])
-                LOGGER.error(f'The Cisco Warranty API ran into an error for '
+                logger.error(f'The Cisco Warranty API ran into an error for '
                              f'Cisco record with serial number '
                              f'{cisco_device["sr_no"]}. Reason: '
                              f'{error_response}')
@@ -324,7 +297,7 @@ def update_cisco_records_with_warranties(
             # Check if we cannot back-reference the serial number to the
             # provided valid Cisco records.
             if not cisco_record:
-                LOGGER.error(f'Unable to reference Cisco record back to '
+                logger.error(f'Unable to reference Cisco record back to '
                              f'ServiceNow with serial number '
                              f'{cisco_device["sr_no"]}')
                 continue
@@ -332,7 +305,7 @@ def update_cisco_records_with_warranties(
             # Update this Cisco record with updated warranty information.
             update_cisco_record_warranty(cisco_record, cisco_device)
 
-    LOGGER.info('Cisco records updated!')
+    logger.info('Cisco records updated!')
 
 
 def update_cisco_record_warranty(cisco_record: SNowRecord,
@@ -383,7 +356,7 @@ def update_cisco_records_with_eols(cisco_records: dict[str, SNowRecord]) -> \
         information.
     """
 
-    LOGGER.info('Retrieving and updating Cisco records with end-of-life '
+    logger.info('Retrieving and updating Cisco records with end-of-life '
                 'information...')
 
     # Get a Cisco EOX API token to establish a connection to the API.
@@ -409,7 +382,7 @@ def update_cisco_records_with_eols(cisco_records: dict[str, SNowRecord]) -> \
 
         # Check if the request was not successful.
         if cisco_eox_resp.status_code != 200:
-            LOGGER.error(f'Status code {cisco_eox_resp.status_code} '
+            logger.error(f'Status code {cisco_eox_resp.status_code} '
                          f'received from the Cisco EOX API. Reason: '
                          f'{cisco_eox_resp.reason}')
             continue
@@ -419,10 +392,10 @@ def update_cisco_records_with_eols(cisco_records: dict[str, SNowRecord]) -> \
 
         # Check if this is a valid batch.
         if 'EOXRecord' not in cisco_eox_batch_resp.keys():
-            LOGGER.error('The Cisco EOX API ran into an error for a batch of '
+            logger.error('The Cisco EOX API ran into an error for a batch of '
                          'Cisco records likely due to an erroneous serial '
                          'number.')
-            LOGGER.error(cisco_eox_batch_resp)
+            logger.error(cisco_eox_batch_resp)
             continue
 
         # Iterate through this batch and update the Cisco record.
@@ -438,7 +411,7 @@ def update_cisco_records_with_eols(cisco_records: dict[str, SNowRecord]) -> \
                 # Check if we could not reference this record back to
                 # ServiceNow.
                 if not cisco_record:
-                    LOGGER.error(f'Unable to reference Cisco record back to '
+                    logger.error(f'Unable to reference Cisco record back to '
                                  f'ServiceNow with serial number '
                                  f'{cisco_device_sn}')
                     continue
@@ -446,7 +419,7 @@ def update_cisco_records_with_eols(cisco_records: dict[str, SNowRecord]) -> \
                 # Update this Cisco record with updated end-of-life information.
                 update_cisco_record_eol(cisco_record, end_of_life_str)
 
-    LOGGER.info('Cisco records updated!')
+    logger.info('Cisco records updated!')
 
 
 def update_cisco_record_eol(cisco_record: SNowRecord,
@@ -474,14 +447,14 @@ def sync_records_back_to_snow(snow_records: dict[str, SNowRecord]) -> None:
     :param snow_records: The ServiceNow records to update.
     """
 
-    LOGGER.info('Synchronizing records back to ServiceNow...')
+    logger.info('Synchronizing records back to ServiceNow...')
 
     # Go through each record and sync it back to ServiceNow, if appropriate.
     for snow_record in snow_records.values():
         # Check if ServiceNow should be updated.
         if snow_record.update_snow:
-            snow_ci_table = SNOW_CLIENT.resource(api_path=SNOW_CI_TABLE_PATH)
-            LOGGER.info(f'Syncing {snow_record.manufacturer} record to '
+            snow_ci_table = SERVICENOW_CLIENT.resource(api_path=SERVICENOW_CI_TABLE_PATH)
+            logger.info(f'Syncing {snow_record.manufacturer} record to '
                         f'ServiceNow: {snow_record.name}')
 
             # Try to update this record.
@@ -502,16 +475,16 @@ def sync_records_back_to_snow(snow_records: dict[str, SNowRecord]) -> None:
                 )
             except exceptions.MultipleResults:
                 # We got multiple results. Must be a duplicate.
-                LOGGER.error(f'Duplicate {snow_record.manufacturer} record '
+                logger.error(f'Duplicate {snow_record.manufacturer} record '
                              f'found: {snow_record.name}')
                 continue
             except exceptions.NoResults:
                 # We didn't get any results. We can't update this record.
-                LOGGER.error(f'{snow_record.manufacturer} record could not '
+                logger.error(f'{snow_record.manufacturer} record could not '
                              f'be found: {snow_record.name}')
                 continue
 
-    LOGGER.info('Records synchronized with ServiceNow!')
+    logger.info('Records synchronized with ServiceNow!')
 
 
 def update_dell_records_with_warranties(dell_records: dict[str, SNowRecord]) \
@@ -524,7 +497,7 @@ def update_dell_records_with_warranties(dell_records: dict[str, SNowRecord]) \
         information.
     """
 
-    LOGGER.info('Retrieving and updating Dell records with warranty '
+    logger.info('Retrieving and updating Dell records with warranty '
                 'information...')
 
     # Get a Dell TechDirect API token to establish a connection to the API.
@@ -553,7 +526,7 @@ def update_dell_records_with_warranties(dell_records: dict[str, SNowRecord]) \
 
         # Check if the request was not successful.
         if dell_warranty_resp.status_code != 200:
-            LOGGER.error(f'Status code {dell_warranty_resp.status_code} '
+            logger.error(f'Status code {dell_warranty_resp.status_code} '
                          f'received from the Dell TechDirect API. Reason: '
                          f'{dell_warranty_resp.reason}')
             continue
@@ -569,7 +542,7 @@ def update_dell_records_with_warranties(dell_records: dict[str, SNowRecord]) \
             # Check if we cannot back-reference the serial number provided to
             # ServiceNow.
             if not dell_record:
-                LOGGER.error(f'Unable to reference Dell record back to '
+                logger.error(f'Unable to reference Dell record back to '
                              f'ServiceNow with serial number '
                              f'{dell_device["serviceTag"]}')
                 continue
@@ -652,65 +625,9 @@ def batcher(iterable, batch_size: int):
         yield batch
 
 
-def make_logger() -> logging.Logger:
+def run() -> None:
     """
-    Returns the global logger for this script. Logs will be generated for the
-    console, a log file, and Paper Trail.
-
-    :return: The script's global Logger object.
-    """
-
-    # Make the logger's timestamps in UTC.
-    logging.Formatter.converter = time.gmtime
-
-    # Initialize a format for the log file and standard-out handlers.
-    stdout_file_format = logging.Formatter(
-        '%(asctime)s [%(name)s] [%(levelname)s] %(message)s',
-        datefmt='%b %d %Y %H:%M:%S UTC')
-
-    # Initialize and configure the standard-out handler for logging to the
-    # console.
-    stdout_handle = logging.StreamHandler(sys.stdout)
-    stdout_handle.setLevel(logging.INFO)
-    stdout_handle.setFormatter(stdout_file_format)
-
-    # Initialize and configure the log file handler for logging to a file.
-    now_utc = datetime.utcnow().replace(tzinfo=pytz.UTC)
-
-    # Check if the "logs" folder exists. If not, create it.
-    if not os.path.isdir(SCRIPT_PATH + '/../logs'):
-        os.mkdir(SCRIPT_PATH + '/../logs')
-
-    # Initialize and configure the log file handler for logging to a file.
-    log_file_handle = logging.FileHandler(
-        SCRIPT_PATH + '/../logs/warranty_updater_log_' +
-        now_utc.strftime('%Y-%m-%d_%H-%M-%S-%Z') + '.log')
-    log_file_handle.setLevel(logging.INFO)
-    log_file_handle.setFormatter(stdout_file_format)
-
-    # Initialize and configure the remote system handler for logging to
-    # Paper Trail.
-    paper_trail_handle = SysLogHandler(address=(PAPERTRAIL_ADDRESS,
-                                                int(PAPERTRAIL_PORT)))
-    paper_trail_handle.setLevel(logging.INFO)
-    paper_trail_handle.setFormatter(
-        logging.Formatter(LOGGER_NAME + ': %(message)s'))
-
-    # Initialize the global logger and add the standard out, file, and remote
-    # handlers to it.
-    logger = logging.getLogger(name=LOGGER_NAME)
-    logger.addHandler(stdout_handle)
-    logger.addHandler(log_file_handle)
-    logger.addHandler(paper_trail_handle)
-    logger.setLevel(logging.INFO)
-
-    # Return the logger object.
-    return logger
-
-
-def main() -> None:
-    """
-    Main method that runs the script.
+    Method that runs the script.
     """
 
     # Get all active Cisco records from ServiceNow.
@@ -747,8 +664,4 @@ def main() -> None:
 
 
 if __name__ == '__main__':
-    # Make the global logger for this script.
-    LOGGER = make_logger()
-
-    # Run the script.
-    main()
+    run()
