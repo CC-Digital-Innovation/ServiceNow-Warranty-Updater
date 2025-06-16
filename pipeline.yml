@@ -38,11 +38,10 @@ resources:
   # resource of where to push image
   - name: registry
     type: registry-image
-    icon: gitlab
     source:
-      repository: ((gitlab.repository))/((image))
-      username: ((gitlab.username))
-      password: ((gitlab.password))
+      repository: ((harbor.repository))/((image))
+      username: ((harbor.username))
+      password: ((harbor.password))
   # resource for versioning
   - name: version
     type: semver
