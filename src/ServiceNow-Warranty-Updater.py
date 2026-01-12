@@ -1,19 +1,19 @@
-from dataclasses import dataclass
 import itertools
 import os
 import re
 import urllib3
+from dataclasses import dataclass
 
-from dotenv import load_dotenv
+import dotenv
+import pysnow
 from loguru import logger
 from oauthlib.oauth2 import BackendApplicationClient
-import pysnow
 from pysnow import exceptions
 from requests_oauthlib import OAuth2Session
 
 
 # ====================== Environment / Global Variables =======================
-load_dotenv(override=True)
+dotenv.load_dotenv(override=True)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ServiceNow API constant global variables.

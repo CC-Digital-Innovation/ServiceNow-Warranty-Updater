@@ -1,6 +1,6 @@
+loguru
 oauthlib
 pysnow
 python-dotenv
 python-magic
 requests_oauthlib
-loguru

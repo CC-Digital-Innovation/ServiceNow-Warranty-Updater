@@ -15,7 +15,7 @@ they need to start considering a new warranty or replacing their old devices.
 ## Requirements
 
 #### Language
-- Python 3.11.1
+- Python 3.12.x
 
 #### Python Libraries
 - oauthlib
