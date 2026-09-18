@@ -1,6 +1,6 @@
-loguru
-oauthlib
-pysnow
-python-dotenv
-python-magic
-requests_oauthlib
+loguru==0.7.3
+oauthlib==3.3.1
+pysnow==0.7.17
+python-dotenv==1.2.3
+python-magic==0.4.27
+requests-oauthlib==1.3.1
